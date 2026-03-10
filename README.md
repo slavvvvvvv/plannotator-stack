@@ -4,7 +4,7 @@
 
 # Plannotator
 
-Interactive Plan Review for AI Coding Agents. Mark up and refine your plans using a visual UI, share for team collaboration, and seamlessly integrate with **Claude Code**, **OpenCode**, and **Pi**.
+Interactive Plan Review for AI Coding Agents. Mark up and refine your plans using a visual UI, share for team collaboration, and seamlessly integrate with **Claude Code**, **OpenCode**, **Pi**, and **Codex**.
 
 <table>
 <tr>
@@ -55,6 +55,7 @@ Plannotator lets you privately share plans, annotations, and feedback with colle
 - [Claude Code](#install-for-claude-code)
 - [OpenCode](#install-for-opencode)
 - [Pi](#install-for-pi)
+- [Codex](#install-for-codex)
 
 ## Install for Claude Code
 
@@ -119,6 +120,35 @@ pi install npm:@plannotator/pi-extension
 Then start Pi with `--plan` to enter plan mode, or toggle it during a session with `/plannotator`.
 
 See [apps/pi-extension/README.md](apps/pi-extension/README.md) for full usage details, commands, and flags.
+
+---
+
+## Install for Codex
+
+**Install the `plannotator` command:**
+
+**macOS / Linux / WSL:**
+
+```bash
+curl -fsSL https://plannotator.ai/install.sh | bash
+```
+
+**Windows PowerShell:**
+
+```powershell
+irm https://plannotator.ai/install.ps1 | iex
+```
+
+**Then in Codex, run directly:**
+
+```
+!plannotator review           # Code review for current changes
+!plannotator annotate file.md # Annotate a markdown file
+```
+
+Plan mode is not yet supported.
+
+See [apps/codex/README.md](apps/codex/README.md) for details.
 
 ---
 
