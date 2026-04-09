@@ -25,7 +25,7 @@ interface ListMarkerProps {
   onToggle?: () => void;
 }
 
-const BULLET_BY_LEVEL = ['\u2022', '\u25E6', '\u25AA'];
+const BULLET_BY_LEVEL = ['\u2022', '\u2022', '\u2022'];
 
 export const ListMarker: React.FC<ListMarkerProps> = ({
   level,
@@ -57,11 +57,11 @@ export const ListMarker: React.FC<ListMarkerProps> = ({
       )}
       {isCheckbox ? (
         checked ? (
-          <svg className="w-4 h-4 text-success" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+          <svg className="w-4 h-4 text-success mt-[3px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         ) : (
-          <svg className={`w-4 h-4 text-muted-foreground/50${interactive ? ' hover:text-muted-foreground transition-colors' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+          <svg className={`w-4 h-4 text-muted-foreground/50 mt-[3px]${interactive ? ' hover:text-muted-foreground transition-colors' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
             <circle cx="12" cy="12" r="9" />
           </svg>
         )

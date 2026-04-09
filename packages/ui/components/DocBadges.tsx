@@ -37,11 +37,15 @@ export const DocBadges: React.FC<DocBadgesProps> = ({
   archiveInfo,
   linkedDocInfo,
 }) => {
-  const anything =
-    repoInfo || hasPreviousVersion || showDemoBadge || linkedDocInfo || archiveInfo;
-  if (!anything) return null;
-
   const isRow = layout === 'row';
+
+  // In row layout, only PlanDiffBadge (when it has stats to show) and
+  // archiveInfo actually render — everything else is hidden. Check what
+  // will truly produce visible output to avoid an empty wrapper div.
+  const anything = isRow
+    ? (!linkedDocInfo && ((hasPreviousVersion && planDiffStats) || archiveInfo))
+    : repoInfo || hasPreviousVersion || showDemoBadge || linkedDocInfo || archiveInfo;
+  if (!anything) return null;
 
   // Row layout: single horizontal line. Column layout: stacked rows.
   const outerClass = isRow
