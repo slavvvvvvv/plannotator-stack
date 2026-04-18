@@ -225,9 +225,11 @@ if ($verifyAttestationResolved) {
 }
 
 Move-Item -Force $tmpFile "$installDir\plannotator.exe"
+Copy-Item -Force "$installDir\plannotator.exe" "$installDir\stack.exe"
 
 Write-Host ""
 Write-Host "plannotator $latestTag installed to $installDir\plannotator.exe"
+Write-Host "stack alias installed to $installDir\stack.exe"
 
 # Add to PATH if not already there
 $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
@@ -302,6 +304,23 @@ If the review above contains feedback or annotations, address them. If no change
 
 Write-Host "Installed /plannotator-review command to $claudeCommandsDir\plannotator-review.md"
 
+@'
+---
+description: Open interactive code review for current changes or a PR URL
+allowed-tools: Bash(stack:*)
+---
+
+## Code Review Feedback
+
+!`stack review $ARGUMENTS`
+
+## Your task
+
+If the review above contains feedback or annotations, address them. If no changes were requested, acknowledge and continue.
+'@ | Set-Content -Path "$claudeCommandsDir\stack-review.md"
+
+Write-Host "Installed /stack-review command to $claudeCommandsDir\stack-review.md"
+
 # Install Claude Code /annotate slash command
 @'
 ---
@@ -352,6 +371,17 @@ Acknowledge "Opening code review..." and wait for the user's feedback.
 "@ | Set-Content -Path "$opencodeCommandsDir\plannotator-review.md"
 
 Write-Host "Installed /plannotator-review command to $opencodeCommandsDir\plannotator-review.md"
+
+@"
+---
+description: Open interactive code review for current changes
+---
+
+The stack code review has been triggered. Opening the review UI...
+Acknowledge "Opening code review..." and wait for the user's feedback.
+"@ | Set-Content -Path "$opencodeCommandsDir\stack-review.md"
+
+Write-Host "Installed /stack-review command to $opencodeCommandsDir\stack-review.md"
 
 # Install OpenCode /annotate slash command
 @"
@@ -532,7 +562,7 @@ Write-Host "Add the plugin to your opencode.json:"
 Write-Host ""
 Write-Host '  "plugin": ["@plannotator/opencode@latest"]'
 Write-Host ""
-Write-Host "Then restart OpenCode. The /plannotator-review, /plannotator-annotate, and /plannotator-last commands are ready!"
+Write-Host "Then restart OpenCode. The /plannotator-review, /stack-review, /plannotator-annotate, and /plannotator-last commands are ready!"
 Write-Host ""
 Write-Host "=========================================="
 Write-Host "  PI USERS"
@@ -550,7 +580,7 @@ Write-Host "Install the Claude Code plugin:"
 Write-Host "  /plugin marketplace add backnotprop/plannotator"
 Write-Host "  /plugin install plannotator@plannotator"
 Write-Host ""
-Write-Host "The /plannotator-review, /plannotator-annotate, and /plannotator-last commands are ready to use after you restart Claude Code!"
+Write-Host "The /plannotator-review, /stack-review, /plannotator-annotate, and /plannotator-last commands are ready to use after you restart Claude Code!"
 
 # Warn if plannotator is configured in both settings.json hooks AND the plugin (causes double execution)
 # Only warn when the plugin is installed — manual-only users won't have overlap

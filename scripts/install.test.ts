@@ -13,6 +13,27 @@ import { join } from "node:path";
 
 const scriptsDir = import.meta.dir;
 
+describe("install-local.sh", () => {
+  const script = readFileSync(join(scriptsDir, "install-local.sh"), "utf-8");
+
+  test("builds review and hook before compiling the CLI", () => {
+    expect(script).toContain("bun run build:review");
+    expect(script).toContain("bun run build:hook");
+    expect(script).toContain('bun build apps/hook/server/index.ts --compile --outfile "$PLANNOTATOR_BIN"');
+  });
+
+  test("installs both plannotator and stack binaries", () => {
+    expect(script).toContain('PLANNOTATOR_BIN="${INSTALL_DIR}/plannotator"');
+    expect(script).toContain('STACK_BIN="${INSTALL_DIR}/stack"');
+    expect(script).toContain('ln -sf "$PLANNOTATOR_BIN" "$STACK_BIN"');
+  });
+
+  test("supports install-dir override", () => {
+    expect(script).toContain("--install-dir");
+    expect(script).toContain('INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"');
+  });
+});
+
 describe("install.sh", () => {
   const script = readFileSync(join(scriptsDir, "install.sh"), "utf-8");
 
@@ -30,6 +51,7 @@ describe("install.sh", () => {
 
   test("installs to ~/.local/bin", () => {
     expect(script).toContain('INSTALL_DIR="$HOME/.local/bin"');
+    expect(script).toContain('ln -sf "$INSTALL_DIR/plannotator" "$INSTALL_DIR/stack"');
   });
 
   test("verifies checksums", () => {
@@ -62,6 +84,7 @@ describe("install.sh", () => {
 
   test("installs slash commands for Claude Code and OpenCode", () => {
     expect(script).toContain("plannotator-review.md");
+    expect(script).toContain("stack-review.md");
     expect(script).toContain("plannotator-annotate.md");
     expect(script).toContain("plannotator-last.md");
     expect(script).toContain("CLAUDE_COMMANDS_DIR");
@@ -115,6 +138,7 @@ describe("install.ps1", () => {
   test("adds to PATH via environment variable", () => {
     expect(script).toContain('SetEnvironmentVariable("Path"');
     expect(script).toContain('"User"');
+    expect(script).toContain('stack.exe');
   });
 
   test("warns about duplicate hooks", () => {
@@ -131,6 +155,7 @@ describe("install.ps1", () => {
 
   test("installs slash commands", () => {
     expect(script).toContain("plannotator-review.md");
+    expect(script).toContain("stack-review.md");
     expect(script).toContain("plannotator-annotate.md");
     expect(script).toContain("plannotator-last.md");
   });
@@ -192,6 +217,7 @@ describe("install.cmd", () => {
 
   test("installs slash commands", () => {
     expect(script).toContain("plannotator-review.md");
+    expect(script).toContain("stack-review.md");
     expect(script).toContain("plannotator-annotate.md");
     expect(script).toContain("plannotator-last.md");
   });

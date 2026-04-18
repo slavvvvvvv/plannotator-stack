@@ -289,14 +289,16 @@ else
     echo "https://plannotator.ai/docs/getting-started/installation/#verifying-your-install"
 fi
 
-# Remove old binary first (handles Windows .exe and locked file issues)
-rm -f "$INSTALL_DIR/plannotator" "$INSTALL_DIR/plannotator.exe" 2>/dev/null || true
+# Remove old binaries first (handles Windows .exe and locked file issues)
+rm -f "$INSTALL_DIR/plannotator" "$INSTALL_DIR/plannotator.exe" "$INSTALL_DIR/stack" "$INSTALL_DIR/stack.exe" 2>/dev/null || true
 
 mv "$tmp_file" "$INSTALL_DIR/plannotator"
 chmod +x "$INSTALL_DIR/plannotator"
+ln -sf "$INSTALL_DIR/plannotator" "$INSTALL_DIR/stack"
 
 echo ""
 echo "plannotator ${latest_tag} installed to ${INSTALL_DIR}/plannotator"
+echo "stack alias installed to ${INSTALL_DIR}/stack"
 
 if ! echo "$PATH" | tr ':' '\n' | grep -qx "$INSTALL_DIR"; then
     echo ""
@@ -371,6 +373,23 @@ COMMAND_EOF
 
 echo "Installed /plannotator-review command to ${CLAUDE_COMMANDS_DIR}/plannotator-review.md"
 
+cat > "$CLAUDE_COMMANDS_DIR/stack-review.md" << 'COMMAND_EOF'
+---
+description: Open interactive code review for current changes or a PR URL
+allowed-tools: Bash(stack:*)
+---
+
+## Code Review Feedback
+
+!`stack review $ARGUMENTS`
+
+## Your task
+
+If the review above contains feedback or annotations, address them. If no changes were requested, acknowledge and continue.
+COMMAND_EOF
+
+echo "Installed /stack-review command to ${CLAUDE_COMMANDS_DIR}/stack-review.md"
+
 # Install /annotate slash command for Claude Code
 cat > "$CLAUDE_COMMANDS_DIR/plannotator-annotate.md" << 'COMMAND_EOF'
 ---
@@ -421,6 +440,17 @@ Acknowledge "Opening code review..." and wait for the user's feedback.
 COMMAND_EOF
 
 echo "Installed /plannotator-review command to ${OPENCODE_COMMANDS_DIR}/plannotator-review.md"
+
+cat > "$OPENCODE_COMMANDS_DIR/stack-review.md" << 'COMMAND_EOF'
+---
+description: Open interactive code review for current changes
+---
+
+The stack code review has been triggered. Opening the review UI...
+Acknowledge "Opening code review..." and wait for the user's feedback.
+COMMAND_EOF
+
+echo "Installed /stack-review command to ${OPENCODE_COMMANDS_DIR}/stack-review.md"
 
 # Install /annotate slash command for OpenCode
 cat > "$OPENCODE_COMMANDS_DIR/plannotator-annotate.md" << 'COMMAND_EOF'

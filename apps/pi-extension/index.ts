@@ -378,6 +378,47 @@ export default function plannotator(pi: ExtensionAPI): void {
 		},
 	});
 
+	pi.registerCommand("stack-review", {
+		description: "Open interactive code review for current changes or a PR URL",
+		handler: async (args, ctx) => {
+			if (!hasReviewBrowserHtml()) {
+				ctx.ui.notify(
+					"Code review UI not available. Run 'bun run build' in the pi-extension directory.",
+					"error",
+				);
+				return;
+			}
+
+			try {
+				const prUrl = args?.trim() || undefined;
+				const isPRReview = prUrl?.startsWith("http://") || prUrl?.startsWith("https://");
+				const result = await openCodeReview(ctx, { prUrl });
+				if (result.exit) {
+					ctx.ui.notify("Code review session closed.", "info");
+				} else if (result.feedback) {
+					if (result.approved) {
+						pi.sendUserMessage(
+							`# Code Review\n\nCode review completed — no changes requested.`,
+						);
+					} else if (isPRReview) {
+						pi.sendUserMessage(result.feedback);
+					} else {
+						pi.sendUserMessage(
+							`${result.feedback}\n\nPlease address this feedback.`,
+						);
+					}
+				} else {
+					ctx.ui.notify("Code review closed (no feedback).", "info");
+				}
+			} catch (err) {
+				ctx.ui.notify(
+					`Failed to start code review UI: ${getStartupErrorMessage(err)}`,
+					"error",
+				);
+			}
+		},
+	});
+
 	pi.registerCommand("plannotator-annotate", {
 		description: "Open markdown file or folder in annotation UI",
 		handler: async (args, ctx) => {

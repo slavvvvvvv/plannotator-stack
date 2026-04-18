@@ -20,6 +20,7 @@ import {
   getGitContext,
   runGitDiff,
   getFileContentsForDiff as gitGetFileContentsForDiff,
+  createWorktreeDiffType,
   gitAddFile,
   gitResetFile,
   parseWorktreeDiffType,
@@ -46,7 +47,10 @@ export interface VcsProvider {
   ownsDiffType(diffType: string): boolean;
 
   /** Build context with branch info and available diff options */
-  getContext(cwd?: string): Promise<GitContext>;
+  getContext(
+    cwd?: string,
+    options?: { selectedTrainName?: string | null },
+  ): Promise<GitContext>;
 
   /** Get unified diff patch for the given diff type */
   runDiff(diffType: DiffType, defaultBranch: string, cwd?: string): Promise<DiffResult>;
@@ -92,7 +96,7 @@ const gitProvider: VcsProvider = {
   },
 
   ownsDiffType(diffType: string): boolean {
-    return GIT_DIFF_TYPES.has(diffType) || diffType.startsWith("worktree:");
+    return GIT_DIFF_TYPES.has(diffType) || diffType.startsWith("stack:") || diffType.startsWith("worktree:");
   },
 
   getContext: getGitContext,
@@ -156,7 +160,12 @@ export type {
   WorktreeInfo,
 } from "./git";
 
-export { parseWorktreeDiffType, validateFilePath, runtime as gitRuntime } from "./git";
+export {
+  createWorktreeDiffType,
+  parseWorktreeDiffType,
+  validateFilePath,
+  runtime as gitRuntime,
+} from "./git";
 
 // --- Detection cache ---
 
@@ -190,9 +199,12 @@ function getProviderForDiffType(diffType: string): VcsProvider {
 
 // --- Public API ---
 
-export async function getVcsContext(cwd?: string): Promise<GitContext> {
+export async function getVcsContext(
+  cwd?: string,
+  options?: { selectedTrainName?: string | null },
+): Promise<GitContext> {
   const provider = await detectVcs(cwd);
-  return provider.getContext(cwd);
+  return provider.getContext(cwd, options);
 }
 
 export async function runVcsDiff(

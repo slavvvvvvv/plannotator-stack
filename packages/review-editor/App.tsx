@@ -45,6 +45,7 @@ import { JobLogsProvider } from './dock/JobLogsContext';
 import { reviewPanelComponents } from './dock/reviewPanelComponents';
 import { ReviewDockTabRenderer } from './dock/ReviewDockTabRenderer';
 import { usePRContext } from './hooks/usePRContext';
+import { composeCompositeDiffType, parseCompositeDiffType } from './utils/diffTypeSelection';
 import {
   REVIEW_PANEL_TYPES,
   REVIEW_DIFF_PANEL_ID,
@@ -861,18 +862,7 @@ const ReviewApp: React.FC = () => {
 
   // Derive worktree path and base diff type from the composite diffType string
   const { activeWorktreePath, activeDiffBase } = useMemo(() => {
-    if (diffType.startsWith('worktree:')) {
-      const rest = diffType.slice('worktree:'.length);
-      const lastColon = rest.lastIndexOf(':');
-      if (lastColon !== -1) {
-        const sub = rest.slice(lastColon + 1);
-        if (['uncommitted', 'staged', 'unstaged', 'last-commit', 'branch'].includes(sub)) {
-          return { activeWorktreePath: rest.slice(0, lastColon), activeDiffBase: sub };
-        }
-      }
-      return { activeWorktreePath: rest, activeDiffBase: 'uncommitted' };
-    }
-    return { activeWorktreePath: null, activeDiffBase: diffType };
+    return parseCompositeDiffType(diffType);
   }, [diffType]);
 
   // Git add/staging logic
@@ -888,13 +878,16 @@ const ReviewApp: React.FC = () => {
   const canStageFiles = canStageRaw && !prMetadata;
 
   // Shared helper: fetch a diff switch and update state
-  const fetchDiffSwitch = useCallback(async (fullDiffType: string) => {
+  const fetchDiffSwitch = useCallback(async (fullDiffType?: string, trainName?: string | null) => {
     setIsLoadingDiff(true);
     try {
       const res = await fetch('/api/diff/switch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ diffType: fullDiffType }),
+        body: JSON.stringify({
+          ...(fullDiffType !== undefined && { diffType: fullDiffType }),
+          ...(trainName !== undefined && { trainName }),
+        }),
       });
 
       if (!res.ok) throw new Error('Failed to switch diff');
@@ -903,15 +896,25 @@ const ReviewApp: React.FC = () => {
         rawPatch: string;
         gitRef: string;
         diffType: string;
+        gitContext?: GitContext;
         error?: string;
       };
 
       const nextFiles = parseDiffToFiles(data.rawPatch);
       dockApi?.getPanel(REVIEW_DIFF_PANEL_ID)?.api.close();
       needsInitialDiffPanel.current = true;
-      setDiffData(prev => prev ? { ...prev, rawPatch: data.rawPatch, gitRef: data.gitRef, diffType: data.diffType } : prev);
+      setDiffData(prev => prev ? {
+        ...prev,
+        rawPatch: data.rawPatch,
+        gitRef: data.gitRef,
+        diffType: data.diffType,
+        gitContext: data.gitContext ?? prev.gitContext,
+      } : prev);
       setFiles(nextFiles);
       setDiffType(data.diffType);
+      if (data.gitContext) {
+        setGitContext(data.gitContext);
+      }
       setActiveFileIndex(0);
       setPendingSelection(null);
       setDiffError(data.error || null);
@@ -926,9 +929,7 @@ const ReviewApp: React.FC = () => {
 
   // Switch diff type (uncommitted, last-commit, branch) — composes worktree prefix if active
   const handleDiffSwitch = useCallback(async (baseDiffType: string) => {
-    const fullDiffType = activeWorktreePath
-      ? `worktree:${activeWorktreePath}:${baseDiffType}`
-      : baseDiffType;
+    const fullDiffType = composeCompositeDiffType(baseDiffType, activeWorktreePath);
     if (fullDiffType === diffType) return;
     await fetchDiffSwitch(fullDiffType);
   }, [diffType, activeWorktreePath, fetchDiffSwitch]);
@@ -936,11 +937,13 @@ const ReviewApp: React.FC = () => {
   // Switch worktree context (or back to main repo)
   const handleWorktreeSwitch = useCallback(async (worktreePath: string | null) => {
     if (worktreePath === activeWorktreePath) return;
-    const fullDiffType = worktreePath
-      ? `worktree:${worktreePath}:uncommitted`
-      : 'uncommitted';
+    const fullDiffType = composeCompositeDiffType('uncommitted', worktreePath);
     await fetchDiffSwitch(fullDiffType);
   }, [activeWorktreePath, fetchDiffSwitch]);
+
+  const handleTrainSwitch = useCallback(async (trainName: string | null) => {
+    await fetchDiffSwitch(undefined, trainName);
+  }, [fetchDiffSwitch]);
 
   // Select annotation - switches file if needed and scrolls to it
   const handleSelectAnnotation = useCallback((id: string | null) => {
@@ -1661,6 +1664,8 @@ const ReviewApp: React.FC = () => {
                 worktrees={gitContext?.worktrees}
                 activeWorktreePath={activeWorktreePath}
                 onSelectWorktree={handleWorktreeSwitch}
+                stackContext={gitContext?.stackContext ?? null}
+                onSelectTrain={handleTrainSwitch}
                 currentBranch={gitContext?.currentBranch}
                 stagedFiles={stagedFiles}
                 onCopyRawDiff={handleCopyDiff}
@@ -1738,6 +1743,7 @@ const ReviewApp: React.FC = () => {
                           {activeDiffBase === 'unstaged' && "No unstaged changes. All changes are staged."}
                           {activeDiffBase === 'last-commit' && `No changes in the last commit${activeWorktreePath ? ' in this worktree' : ''}.`}
                           {activeDiffBase === 'branch' && `No changes vs ${gitContext?.defaultBranch || 'main'}${activeWorktreePath ? ' in this worktree' : ''}.`}
+                          {activeDiffBase.startsWith('stack:') && 'No changes in the selected stack diff.'}
                         </p>
                       </>
                     )}

@@ -18,6 +18,7 @@ import {
   getWorktrees as getWorktreesCore,
   getGitContext as getGitContextCore,
   getFileContentsForDiff as getFileContentsForDiffCore,
+  createWorktreeDiffType,
   gitAddFile as gitAddFileCore,
   gitResetFile as gitResetFileCore,
   parseWorktreeDiffType,
@@ -77,8 +78,11 @@ export function getWorktrees(): Promise<WorktreeInfo[]> {
   return getWorktreesCore(runtime);
 }
 
-export function getGitContext(cwd?: string): Promise<GitContext> {
-  return getGitContextCore(runtime, cwd);
+export function getGitContext(
+  cwd?: string,
+  options?: { selectedTrainName?: string | null },
+): Promise<GitContext> {
+  return getGitContextCore(runtime, cwd, options);
 }
 
 export function runGitDiff(
@@ -127,4 +131,4 @@ export function gitResetFile(
   return gitResetFileCore(runtime, filePath, cwd);
 }
 
-export { parseWorktreeDiffType, validateFilePath };
+export { createWorktreeDiffType, parseWorktreeDiffType, validateFilePath };

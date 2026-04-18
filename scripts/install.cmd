@@ -333,9 +333,11 @@ if "!VERIFY_ATTESTATION!"=="1" (
 REM Install binary
 set "INSTALL_PATH=!INSTALL_DIR!\plannotator.exe"
 move /y "!TEMP_FILE!" "!INSTALL_PATH!" >nul
+copy /y "!INSTALL_PATH!" "!INSTALL_DIR!\stack.exe" >nul
 
 echo.
 echo plannotator !TAG! installed to !INSTALL_PATH!
+echo stack alias installed to !INSTALL_DIR!\stack.exe
 
 REM Check if install directory is in PATH
 echo !PATH! | findstr /i /c:"!INSTALL_DIR!" >nul
@@ -419,6 +421,23 @@ echo If the review above contains feedback or annotations, address them. If no c
 ) > "!CLAUDE_COMMANDS_DIR!\plannotator-review.md"
 
 echo Installed /plannotator-review command to !CLAUDE_COMMANDS_DIR!\plannotator-review.md
+
+(
+echo ---
+echo description: Open interactive code review for current changes or a PR URL
+echo allowed-tools: Bash^(stack:*^)
+echo ---
+echo.
+echo ## Code Review Feedback
+echo.
+echo ^^!`stack review $ARGUMENTS`
+echo.
+echo ## Your task
+echo.
+echo If the review above contains feedback or annotations, address them. If no changes were requested, acknowledge and continue.
+) > "!CLAUDE_COMMANDS_DIR!\stack-review.md"
+
+echo Installed /stack-review command to !CLAUDE_COMMANDS_DIR!\stack-review.md
 
 (
 echo ---
@@ -591,7 +610,7 @@ echo Then install the Claude Code plugin:
 echo   /plugin marketplace add backnotprop/plannotator
 echo   /plugin install plannotator@plannotator
 echo.
-echo The /plannotator-review, /plannotator-annotate, and /plannotator-last commands are ready to use!
+echo The /plannotator-review, /stack-review, /plannotator-annotate, and /plannotator-last commands are ready to use!
 
 REM Warn if plannotator is configured in both settings.json hooks AND the plugin (causes double execution)
 REM Only warn when the plugin is installed — manual-only users won't have overlap

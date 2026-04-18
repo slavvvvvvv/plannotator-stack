@@ -16,6 +16,20 @@ curl -fsSL https://plannotator.ai/install.sh | bash
 irm https://plannotator.ai/install.ps1 | iex
 ```
 
+## Local Install From This Checkout
+
+Build the review UI, compile the CLI, and install both `plannotator` and the `stack` alias into `~/.local/bin`:
+
+```bash
+bun install
+bun run build:review
+bun run build:hook
+bun build apps/hook/server/index.ts --compile --outfile ~/.local/bin/plannotator
+ln -sf ~/.local/bin/plannotator ~/.local/bin/stack
+```
+
+If `~/.local/bin` is not already on your `PATH`, add it in your shell config.
+
 ## Usage
 
 ### Code Review
@@ -24,6 +38,7 @@ Run `!plannotator review` to open the code review UI for your current changes:
 
 ```
 !plannotator review
+!stack review
 ```
 
 This captures your git diff, opens a browser with the review UI, and waits for your feedback. When you submit annotations, the feedback is printed to stdout.

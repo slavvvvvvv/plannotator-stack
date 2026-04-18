@@ -4,8 +4,10 @@ import type { DiffOption, WorktreeInfo } from '@plannotator/shared/types';
 import { buildFileTree, getAncestorPaths, getAllFolderPaths } from '../utils/buildFileTree';
 import { FileTreeNodeItem } from './FileTreeNode';
 import { getReviewSearchSideLabel, type ReviewSearchFileGroup, type ReviewSearchMatch } from '../utils/reviewSearch';
+import { groupDiffOptions } from '../utils/diffTypeSelection';
 import type { DiffFile } from '../types';
 import { OverlayScrollArea } from '@plannotator/ui/components/OverlayScrollArea';
+import type { GitStackContext } from '@plannotator/shared/review-core';
 
 interface FileTreeProps {
   files: DiffFile[];
@@ -26,6 +28,8 @@ interface FileTreeProps {
   worktrees?: WorktreeInfo[];
   activeWorktreePath?: string | null;
   onSelectWorktree?: (path: string | null) => void;
+  stackContext?: GitStackContext | null;
+  onSelectTrain?: (trainName: string | null) => void;
   currentBranch?: string;
   stagedFiles?: Set<string>;
   onCopyRawDiff?: () => void;
@@ -65,6 +69,8 @@ export const FileTree: React.FC<FileTreeProps> = ({
   worktrees,
   activeWorktreePath,
   onSelectWorktree,
+  stackContext,
+  onSelectTrain,
   currentBranch,
   stagedFiles,
   onCopyRawDiff,
@@ -165,6 +171,12 @@ export const FileTree: React.FC<FileTreeProps> = ({
       return next;
     });
   }, []);
+
+  const groupedDiffOptions = useMemo(() => groupDiffOptions(diffOptions), [diffOptions]);
+  const shouldShowTrainSelector =
+    !!stackContext?.showTrainSelector &&
+    !!onSelectTrain &&
+    stackContext.trains.length > 1;
 
   return (
     <aside className="border-r border-border/50 bg-card/30 flex flex-col flex-shrink-0 overflow-hidden" style={{ width: width ?? 256 }}>
@@ -294,8 +306,30 @@ export const FileTree: React.FC<FileTreeProps> = ({
       )}
 
       {/* Worktree + diff selectors — combined row when both present */}
-      {((worktrees && worktrees.length > 0 && onSelectWorktree) || (diffOptions && diffOptions.length > 0 && onSelectDiff)) && (
+      {(shouldShowTrainSelector || ((worktrees && worktrees.length > 0 && onSelectWorktree) || (diffOptions && diffOptions.length > 0 && onSelectDiff))) && (
         <div className="px-2 py-1.5 border-b border-border/30 flex gap-2">
+          {shouldShowTrainSelector && stackContext && (
+            <div className="relative flex-1 min-w-0">
+              <select
+                value={stackContext.selectedTrain || ''}
+                onChange={(e) => onSelectTrain(e.target.value || null)}
+                disabled={isLoadingDiff}
+                className="w-full px-2.5 py-1.5 bg-muted rounded text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 cursor-pointer disabled:opacity-50 disabled:cursor-wait appearance-none pr-7"
+              >
+                <option value="">Select stack…</option>
+                {stackContext.trains.map((train) => (
+                  <option key={train.name} value={train.name}>
+                    {train.label}
+                  </option>
+                ))}
+              </select>
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+                <svg className="w-3.5 h-3.5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </div>
+          )}
           {worktrees && worktrees.length > 0 && onSelectWorktree && (
             <div className="relative flex-1 min-w-0">
               <select
@@ -330,11 +364,25 @@ export const FileTree: React.FC<FileTreeProps> = ({
                 disabled={isLoadingDiff}
                 className="w-full px-2.5 py-1.5 bg-muted rounded text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 cursor-pointer disabled:opacity-50 disabled:cursor-wait appearance-none pr-7"
               >
-                {diffOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
+                {groupedDiffOptions.map((group) => {
+                  if (group.label) {
+                    return (
+                      <optgroup key={group.label} label={group.label}>
+                        {group.options.map((option) => (
+                          <option key={option.id} value={option.id} disabled={option.disabled}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    );
+                  }
+
+                  return group.options.map((option) => (
+                    <option key={option.id} value={option.id} disabled={option.disabled}>
+                      {option.label}
+                    </option>
+                  ));
+                })}
               </select>
               <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
                 {isLoadingDiff ? (

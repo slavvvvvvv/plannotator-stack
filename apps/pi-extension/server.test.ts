@@ -305,4 +305,47 @@ describe("pi review server", () => {
       server.stop();
     }
   }, 15_000);
+
+  test("diff switch returns refreshed git context", async () => {
+    const homeDir = makeTempDir("plannotator-pi-home-");
+    const repoDir = initRepo();
+    process.env.HOME = homeDir;
+    process.chdir(repoDir);
+    process.env.PLANNOTATOR_PORT = String(await reservePort());
+
+    writeFileSync(join(repoDir, "tracked.txt"), "after\n", "utf-8");
+
+    const gitContext = await getGitContext();
+    const diff = await runGitDiff("uncommitted", gitContext.defaultBranch);
+
+    const server = await startReviewServer({
+      rawPatch: diff.patch,
+      gitRef: diff.label,
+      error: diff.error,
+      diffType: "uncommitted",
+      gitContext,
+      origin: "pi",
+      htmlContent: "<!doctype html><html><body>review</body></html>",
+    });
+
+    try {
+      const response = await fetch(`${server.url}/api/diff/switch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ diffType: "last-commit" }),
+      });
+      expect(response.status).toBe(200);
+
+      const payload = await response.json() as {
+        diffType: string;
+        gitContext?: { diffOptions: Array<{ id: string }> };
+      };
+      expect(payload.diffType).toBe("last-commit");
+      expect(payload.gitContext?.diffOptions.map((option) => option.id)).toEqual(
+        expect.arrayContaining(["uncommitted", "staged", "unstaged", "last-commit"]),
+      );
+    } finally {
+      server.stop();
+    }
+  });
 });

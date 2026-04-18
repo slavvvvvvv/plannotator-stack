@@ -28,6 +28,7 @@ import {
 	type GitContext,
 	getFileContentsForDiff as getFileContentsForDiffCore,
 	getGitContext as getGitContextCore,
+	createWorktreeDiffType,
 	gitAddFile as gitAddFileCore,
 	gitResetFile as gitResetFileCore,
 	parseWorktreeDiffType,
@@ -125,8 +126,11 @@ export const reviewRuntime: ReviewGitRuntime = {
 	},
 };
 
-export function getGitContext(cwd?: string): Promise<GitContext> {
-	return getGitContextCore(reviewRuntime, cwd);
+export function getGitContext(
+	cwd?: string,
+	options?: { selectedTrainName?: string | null },
+): Promise<GitContext> {
+	return getGitContextCore(reviewRuntime, cwd, options);
 }
 
 export function runGitDiff(
@@ -191,6 +195,8 @@ export async function startReviewServer(options: {
 	let currentGitRef = options.gitRef;
 	let currentDiffType: DiffType = options.diffType || "uncommitted";
 	let currentError = options.error;
+	let currentGitContext = options.gitContext;
+	let currentTrainName = options.gitContext?.stackContext?.selectedTrain ?? null;
 
 	// Agent jobs — background process manager (late-binds serverUrl via getter)
 	let serverUrl = "";
@@ -421,7 +427,7 @@ export async function startReviewServer(options: {
 				gitRef: currentGitRef,
 				origin: options.origin ?? "pi",
 				diffType: hasLocalAccess ? currentDiffType : undefined,
-				gitContext: hasLocalAccess ? options.gitContext : undefined,
+				gitContext: hasLocalAccess ? currentGitContext : undefined,
 				sharingEnabled,
 				shareBaseUrl,
 				pasteApiUrl,
@@ -440,22 +446,56 @@ export async function startReviewServer(options: {
 			}
 			try {
 				const body = await parseBody(req);
-				const newType = body.diffType as DiffType;
-				if (!newType) {
-					json(res, { error: "Missing diffType" }, 400);
+				const newType = body.diffType as DiffType | undefined;
+				const trainName =
+					body.trainName === undefined ? undefined : (body.trainName as string | null);
+				if (!newType && trainName === undefined) {
+					json(res, { error: "Missing diffType or trainName" }, 400);
 					return;
 				}
-				const defaultBranch = options.gitContext?.defaultBranch || "main";
-				const defaultCwd = options.gitContext?.cwd;
-				const result = await runGitDiff(newType, defaultBranch, defaultCwd);
-				currentPatch = result.patch;
-				currentGitRef = result.label;
-				currentDiffType = newType;
-				currentError = result.error;
+				if (trainName !== undefined) {
+					currentTrainName = trainName;
+				}
+				const defaultCwd = currentGitContext?.cwd;
+				currentGitContext = await getGitContextCore(reviewRuntime, defaultCwd, {
+					selectedTrainName: currentTrainName,
+				});
+				let nextDiffType = newType ?? currentDiffType;
+				if (!newType) {
+					const parsedWorktree = currentDiffType.startsWith("worktree:")
+						? parseWorktreeDiffType(currentDiffType)
+						: null;
+					let candidateDiffType = parsedWorktree ? parsedWorktree.subType : currentDiffType;
+					const candidateExists = currentGitContext.diffOptions.some(
+						(option) => option.id === candidateDiffType && !option.disabled,
+					);
+					if (!candidateExists) {
+						candidateDiffType =
+							currentGitContext.diffOptions.find((option) => !option.disabled)?.id ??
+							"uncommitted";
+					}
+					if (parsedWorktree) {
+						nextDiffType = createWorktreeDiffType(parsedWorktree.path, candidateDiffType);
+					} else {
+						nextDiffType = candidateDiffType as DiffType;
+					}
+				}
+				if (nextDiffType) {
+					const result = await runGitDiff(
+						nextDiffType,
+						currentGitContext.defaultBranch,
+						currentGitContext.cwd,
+					);
+					currentPatch = result.patch;
+					currentGitRef = result.label;
+					currentDiffType = nextDiffType;
+					currentError = result.error;
+				}
 				json(res, {
 					rawPatch: currentPatch,
 					gitRef: currentGitRef,
 					diffType: currentDiffType,
+					gitContext: currentGitContext,
 					...(currentError ? { error: currentError } : {}),
 				});
 			} catch (err) {

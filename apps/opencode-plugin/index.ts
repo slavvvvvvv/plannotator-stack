@@ -414,7 +414,7 @@ Do NOT proceed with implementation until your plan is approved.`);
         directory: ctx.directory,
       };
 
-      if (commandName === "plannotator-review")
+      if (commandName === "plannotator-review" || commandName === "stack-review")
         return handleReviewCommand(event, deps);
       if (commandName === "plannotator-annotate")
         return handleAnnotateCommand(event, deps);

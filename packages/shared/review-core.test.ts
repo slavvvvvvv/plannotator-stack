@@ -11,6 +11,7 @@ import {
 } from "./review-core";
 
 const tempDirs: string[] = [];
+const originalHome = process.env.HOME;
 
 function makeTempDir(prefix: string): string {
   const dir = mkdtempSync(join(tmpdir(), prefix));
@@ -54,6 +55,7 @@ function makeRuntime(baseCwd: string): ReviewGitRuntime {
 
 function initRepo(initialBranch = "main"): string {
   const repoDir = makeTempDir("plannotator-review-core-");
+  process.env.HOME = makeTempDir("plannotator-review-core-home-");
   git(repoDir, ["init"]);
   git(repoDir, ["branch", "-M", initialBranch]);
   git(repoDir, ["config", "user.email", "review-core@example.com"]);
@@ -70,6 +72,7 @@ afterEach(() => {
   for (const dir of tempDirs.splice(0)) {
     rmSync(dir, { recursive: true, force: true });
   }
+  process.env.HOME = originalHome;
 });
 
 describe("review-core", () => {
@@ -198,5 +201,61 @@ describe("review-core", () => {
     );
     expect(newFileContents.oldContent).toBeNull();
     expect(newFileContents.newContent).toBe("brand new\n");
+  });
+
+  test("stack-aware context turns Current PR Diff into the current stack item diff", async () => {
+    const repoDir = initRepo();
+    const runtime = makeRuntime(repoDir);
+
+    const stackConfigDir = join(process.env.HOME!, ".config", "git-stack");
+    mkdirSync(stackConfigDir, { recursive: true });
+    writeFileSync(
+      join(stackConfigDir, "stacks.yml"),
+      [
+        "defaults:",
+        "  remote: origin",
+        "stacks:",
+        "  demo:",
+        "    syncBase: main",
+        "    prTarget: main",
+        "    branches:",
+        "      - feature-a",
+        "      - feature-b",
+        "",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    git(repoDir, ["checkout", "-b", "feature-a"]);
+    writeFileSync(join(repoDir, "tracked.txt"), "feature a\n", "utf-8");
+    git(repoDir, ["commit", "-am", "feature a"]);
+
+    git(repoDir, ["checkout", "-b", "feature-b"]);
+    writeFileSync(join(repoDir, "tracked.txt"), "feature b\n", "utf-8");
+    git(repoDir, ["commit", "-am", "feature b"]);
+
+    const context = await getGitContext(runtime);
+    expect(context.stackContext?.selectedTrain).toBe("demo");
+
+    const currentPrDiff = context.diffOptions.find((option) => option.label === "Current PR Diff");
+    expect(currentPrDiff?.id.startsWith("stack:")).toBe(true);
+
+    const stackDiff = await runGitDiff(
+      runtime,
+      currentPrDiff!.id as `stack:${string}`,
+      context.defaultBranch,
+    );
+    expect(stackDiff.patch).toContain("-feature a");
+    expect(stackDiff.patch).toContain("+feature b");
+    expect(stackDiff.patch).not.toContain("-before");
+
+    const stackContents = await getFileContentsForDiff(
+      runtime,
+      currentPrDiff!.id as `stack:${string}`,
+      context.defaultBranch,
+      "tracked.txt",
+    );
+    expect(stackContents.oldContent).toBe("feature a\n");
+    expect(stackContents.newContent).toBe("feature b\n");
   });
 });

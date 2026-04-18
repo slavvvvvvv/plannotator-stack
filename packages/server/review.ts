@@ -11,7 +11,7 @@
 
 import { isRemoteSession, getServerHostname, getServerPort } from "./remote";
 import type { Origin } from "@plannotator/shared/agents";
-import { type DiffType, type GitContext, runVcsDiff, getVcsFileContentsForDiff, canStageFiles, stageFile, unstageFile, resolveVcsCwd, validateFilePath } from "./vcs";
+import { type DiffType, type GitContext, createWorktreeDiffType, parseWorktreeDiffType, runVcsDiff, getVcsContext, getVcsFileContentsForDiff, canStageFiles, stageFile, unstageFile, resolveVcsCwd, validateFilePath } from "./vcs";
 import { getRepoInfo } from "./repo";
 import { handleImage, handleUpload, handleAgents, handleServerReady, handleDraftSave, handleDraftLoad, handleDraftDelete, handleFavicon, type OpencodeClient } from "./shared-handlers";
 import { contentHash, deleteDraft } from "./draft";
@@ -125,6 +125,8 @@ export async function startReviewServer(
   let currentGitRef = options.gitRef;
   let currentDiffType: DiffType = options.diffType || "uncommitted";
   let currentError = options.error;
+  let currentGitContext = gitContext;
+  let currentTrainName = gitContext?.stackContext?.selectedTrain ?? null;
 
   // Agent jobs — background process manager (late-binds serverUrl via getter)
   let serverUrl = "";
@@ -361,7 +363,7 @@ export async function startReviewServer(
               gitRef: currentGitRef,
               origin,
               diffType: hasLocalAccess ? currentDiffType : undefined,
-              gitContext: hasLocalAccess ? gitContext : undefined,
+              gitContext: hasLocalAccess ? currentGitContext : undefined,
               sharingEnabled,
               shareBaseUrl,
               repoInfo,
@@ -383,32 +385,65 @@ export async function startReviewServer(
               );
             }
             try {
-              const body = (await req.json()) as { diffType: DiffType };
-              let newDiffType = body.diffType;
+              const body = (await req.json()) as {
+                diffType?: DiffType;
+                trainName?: string | null;
+              };
 
-              if (!newDiffType) {
+              if (!body.diffType && body.trainName === undefined) {
                 return Response.json(
-                  { error: "Missing diffType" },
+                  { error: "Missing diffType or trainName" },
                   { status: 400 }
                 );
               }
 
-              const defaultBranch = gitContext?.defaultBranch || "main";
-              const defaultCwd = gitContext?.cwd;
+              if (body.trainName !== undefined) {
+                currentTrainName = body.trainName;
+              }
 
-              // Run the new diff
-              const result = await runVcsDiff(newDiffType, defaultBranch, defaultCwd);
+              const defaultCwd = currentGitContext?.cwd;
+              currentGitContext = await getVcsContext(defaultCwd, {
+                selectedTrainName: currentTrainName,
+              });
 
-              // Update state
-              currentPatch = result.patch;
-              currentGitRef = result.label;
-              currentDiffType = newDiffType;
-              currentError = result.error;
+              let nextDiffType = body.diffType ?? currentDiffType;
+              if (!body.diffType) {
+                const parsedWorktree = currentDiffType.startsWith("worktree:")
+                  ? parseWorktreeDiffType(currentDiffType)
+                  : null;
+                let candidateDiffType = parsedWorktree ? parsedWorktree.subType : currentDiffType;
+                const candidateExists = currentGitContext.diffOptions.some(
+                  (option) => option.id === candidateDiffType && !option.disabled,
+                );
+                if (!candidateExists) {
+                  candidateDiffType =
+                    currentGitContext.diffOptions.find((option) => !option.disabled)?.id ??
+                    "uncommitted";
+                }
+                if (parsedWorktree) {
+                  nextDiffType = createWorktreeDiffType(parsedWorktree.path, candidateDiffType);
+                } else {
+                  nextDiffType = candidateDiffType as DiffType;
+                }
+              }
+
+              if (nextDiffType) {
+                const result = await runVcsDiff(
+                  nextDiffType,
+                  currentGitContext.defaultBranch,
+                  currentGitContext.cwd,
+                );
+                currentPatch = result.patch;
+                currentGitRef = result.label;
+                currentDiffType = nextDiffType;
+                currentError = result.error;
+              }
 
               return Response.json({
                 rawPatch: currentPatch,
                 gitRef: currentGitRef,
                 diffType: currentDiffType,
+                gitContext: currentGitContext,
                 ...(currentError && { error: currentError }),
               });
             } catch (err) {

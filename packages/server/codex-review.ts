@@ -10,6 +10,7 @@ import { homedir, tmpdir } from "node:os";
 import { appendFile, mkdir, unlink, writeFile, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import type { DiffType } from "./vcs";
+import { parseWorktreeDiffType } from "./vcs";
 import type { PRMetadata } from "./pr";
 import { toRelativePath } from "./path-utils";
 
@@ -185,7 +186,7 @@ export function buildCodexReviewUserMessage(
 
   // Local mode — Codex has full file/git access
   const effectiveDiffType = diffType.startsWith("worktree:")
-    ? diffType.split(":").pop() || "uncommitted"
+    ? parseWorktreeDiffType(diffType)?.subType || "uncommitted"
     : diffType;
 
   switch (effectiveDiffType) {
